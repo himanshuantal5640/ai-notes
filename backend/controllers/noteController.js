@@ -123,5 +123,49 @@ const deleteNotes = async(req,res) =>{
     }
 }
 
-module.exports = {createNotes,getNotes,getSingleNotes,updateNotes,deleteNotes};
+const searchNotes = async(req,res)=>{
+    try{
+        const {q} = req.query;
+        if(!q){
+            return res.status(400).json({
+                success:false,
+                message:"Query parameter is required"
+            });
+        }
+        const notes = await Notes.find({
+            $or:[
+                {
+                    title:{
+                        $regex:q,
+                        $options:'i'
+                    }
+                },
+                {
+                    content:{
+                        $regex:q,
+                        $options:'i'
+                    }
+                }
+            ]
+        }).sort({createdAt: -1});
+        if(!notes || notes.length === 0){
+            return res.status(404).json({
+                success:false,
+                message:"Not found"
+            });
+        }
+        return res.status(200).json({
+            success:true,
+            count:notes.length,
+            data:notes
+        })
+    }
+    catch(err){
+        return res.status(500).json({
+            success:false,
+            message:err.message
+        })
+    }
+}
+module.exports = {createNotes,getNotes,getSingleNotes,updateNotes,deleteNotes,searchNotes};
 
