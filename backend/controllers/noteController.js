@@ -1,6 +1,6 @@
 const Notes = require('../models/Notes');
 
-const createNotes = async(req,res)=>{
+const createNotes = async(req,res,next)=>{
     try{
         const {title,content} = req.body;
         if(!title || !content){
@@ -20,14 +20,11 @@ const createNotes = async(req,res)=>{
             data:note
         })
     }catch(err){
-        return res.status(500).json({
-            success:true,
-            message:err.message
-        });
+        next(err);
     }
 }
 
-const getNotes = async (req,res) =>{
+const getNotes = async (req,res,next) =>{
     try{
         const note = await Notes.find().sort({createdAt: -1});
         if(!note){
@@ -42,129 +39,172 @@ const getNotes = async (req,res) =>{
             data:note
         });
     }catch(err){
-        return res.status(500).json({
-            success:false,
-            message:err.message
-        });
+        next(err);
     }
 }
 
 
-const getSingleNotes = async(req,res) =>{
+const getSingleNotes = async(req,res,next) =>{
     try{
-        const note = await Notes.findById(req.params.id);
-        if(!note){
+        const { id } = req.params;
+
+        // Validate MongoDB ID
+        if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
-                success:false,
-                message:"Not found"
+                success: false,
+                message: "Invalid Note ID."
             });
         }
-        return res.status(200).json({
-            success:true,
-            message:"Data Found",
-            data:note
-        });
-    }
-    catch(err){
-        return res.status(500).json({
-            success:false,
-            message:err.message
-        });
-    }
-}
 
+        const note = await Note.findById(id);
 
-const updateNotes = async(req,res) =>{
-    try{
-        const {title,content} = req.body;
-        const note = await Notes.findById(req.params.id);
-        if(!note){
-            return res.status(400).json({
-                success:false,
-                message:"Data Not Found"
-            });
-        }
-        note.title = title || note.title;
-        note.content = content || note.content;
-        await note.save();
-        return res.status(200).json({
-            success:true,
-            message:"Data Updated",
-            data:note
-        });
-    }
-    catch(err){
-        return res.status(500).json({
-            success:false,
-            message:err.message
-        });
-    }
-}
-
-const deleteNotes = async(req,res) =>{
-    try{
-        const note = await Notes.findById(req.params.id);
-        if(!note){
+        if (!note) {
             return res.status(404).json({
-                success:false,
-                message:"Data Not Found"
+                success: false,
+                message: "Note not found."
             });
         }
+        res.status(200).json({
+            success: true,
+            data: note
+        });
+    }
+    catch(err){
+        next(err);
+    }
+}
+
+
+const updateNotes = async(req,res,next) =>{
+    try{
+        const { id } = req.params;
+        const { title, content } = req.body;
+        // Validate ID
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Note ID."
+            });
+        }
+
+        // Validate title
+        if (title !== undefined && !title.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Title cannot be empty."
+            });
+        }
+
+        // Validate content
+        if (content !== undefined && !content.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Content cannot be empty."
+            });
+        }
+
+        const note = await Note.findById(id);
+
+        if (!note) {
+            return res.status(404).json({
+                success: false,
+                message: "Note not found."
+            });
+        }
+
+        if (title !== undefined) {
+            note.title = title.trim();
+        }
+
+        if (content !== undefined) {
+            note.content = content.trim();
+        }
+
+        await note.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Note updated successfully.",
+            data: note
+        });
+
+    }
+    catch(err){
+        next(err);
+    }
+}
+
+const deleteNotes = async(req,res,next) =>{
+    try{
+        const { id } = req.params;
+
+        // Validate ID
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Note ID."
+            });
+        }
+
+        const note = await Note.findById(id);
+
+        if (!note) {
+            return res.status(404).json({
+                success: false,
+                message: "Note not found."
+            });
+        }
+
         await note.deleteOne();
-        return res.status(200).json({
-            success:true,
-            message:"Data deleted successfully"
+        res.status(200).json({
+            success: true,
+            message: "Note deleted successfully."
         });
     }catch(err){
-        return res.status(500).json({
-            success:false,
-            message:err.message
-        });
+        next(err);
     }
 }
 
-const searchNotes = async(req,res)=>{
+const searchNotes = async(req,res,next)=>{
     try{
-        const {q} = req.query;
-        if(!q){
+        const { q } = req.query;
+
+        if (!q || !q.trim()) {
             return res.status(400).json({
-                success:false,
-                message:"Query parameter is required"
+                success: false,
+                message: "Search query is required."
             });
         }
-        const notes = await Notes.find({
-            $or:[
+
+        const searchTerm = q.trim();
+
+        const notes = await Note.find({
+            $or: [
                 {
-                    title:{
-                        $regex:q,
-                        $options:'i'
+                    title: {
+                        $regex: searchTerm,
+                        $options: "i"
                     }
                 },
                 {
-                    content:{
-                        $regex:q,
-                        $options:'i'
+                    content: {
+                        $regex: searchTerm,
+                        $options: "i"
                     }
                 }
             ]
-        }).sort({createdAt: -1});
-        if(!notes || notes.length === 0){
-            return res.status(404).json({
-                success:false,
-                message:"Not found"
-            });
-        }
-        return res.status(200).json({
-            success:true,
-            count:notes.length,
-            data:notes
-        })
+        }).sort({
+            createdAt: -1
+        });
+
+        res.status(200).json({
+            success: true,
+            count: notes.length,
+            data: notes
+        });
     }
     catch(err){
-        return res.status(500).json({
-            success:false,
-            message:err.message
-        })
+        next(err);
     }
 }
 module.exports = {createNotes,getNotes,getSingleNotes,updateNotes,deleteNotes,searchNotes};

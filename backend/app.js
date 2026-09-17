@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const noteRoutes = require('./routes/notesRoute');
 const aiRoutes = require('./routes/aiRoutes');
+const errorHandler = require('./middleware/error.middleware');
 const app = express();
 
 app.use(cors());
@@ -15,5 +16,5 @@ app.use('/api/ai',aiRoutes);
 //         message: "Welcome to AI Notes Assistant Backend"
 //     });
 // });
-
+app.use(errorHandler);//Global Middleware
 module.exports = app;
